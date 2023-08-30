@@ -1,15 +1,6 @@
+library(labelled, quietly = TRUE, warn.conflicts = FALSE)
 library(tidyverse, quietly = TRUE, warn.conflicts = FALSE)
 library(docstring, quietly = TRUE, warn.conflicts = FALSE)
-
-# .txt fixed-width data input per statcan naming conventions:
-# ENGLXXXXFRAN_X.txt
-path_txt <-  "~/data/data_sources/CTNS2021/SAS/Data_Donnees/CTNS2021ECTN_P.txt"
-
-# .sas input syntax per statcan naming conventions:
-# ENGLXXXXFRAN_X_i.sas
-path_i <-  "~/data/data_sources/CTNS2021/SAS/Data_Donnees/Syntax_Syntaxe/SAS/CTNS2021ECTN_P_i.SAS"
-
-
 
 
 read_txt <- function(txt_data,
@@ -50,9 +41,53 @@ read_txt <- function(txt_data,
   dat <- read_fwf(txt_data,
                   fwf_widths(data_map$X4,
                              data_map$X3),
-                  show_col_types = FALSE) %>% 
+                  show_col_types = FALSE,
+                  progress = FALSE) %>% 
     mutate(across(all_of(data_map$X3[!data_map$is_string]),
                   as.numeric))
+  
+  return(dat)
+}
+
+apply_labels <- function(dat,
+                         syntax_lb){
+#' Apply variable labels from StatCan SAS layout syntax files
+#'
+#' Taking unlablled StatCan data from either a .txt file (via read_txt),
+#' or from a CSV file, this function applies variable labels as found in
+#' a .sas layout syntax file. 
+#'
+#' @param dat An object of Class "data.frame". The unlabelled StatCan dataset
+#' @param syntax_lb An object of Class "String". Path to the .sas label syntax
+#' in either English or French. This is typically in the 
+#' Data_Donnees/Syntax_Syntaxe/SAS directory, named ENGLYYYYFRAN_X_lbx.sas
+#'
+#' @return An object of class "Tibble".
+#'
+#' @examples
+#' ctns_pumf <- read_txt("SAS/Data_Donnees/CTNS2021ECTN_P.txt",
+#'                       "SAS/Data_Donnees/SyntaxSyntax_Syntaxe/SAS/CTNS2021ECTN_P_i.SAS")
+#' ctns_pumf <- apply_labels(ctns_pumf,
+#'                           "SAS/Data_Donnees/SyntaxSyntax_Syntaxe/SAS/CTNS2021ECTN_P_lbe.SAS")
+  
+  label_map <-
+    read_delim(
+      syntax_lb,
+      delim = "=",
+      escape_double = FALSE,
+      col_names = FALSE,
+      trim_ws = TRUE,
+      skip = 1,
+      locale = locale(encoding = "latin1")
+    )
+  label_map <- label_map[1:nrow(label_map)-1,]
+  
+  label_map_list <- setNames(as.list(label_map$X2), 
+                             label_map$X1)
+  
+  var_label(dat) <- label_map_list
+  
+  dat <- as_tibble(dat)
   
   return(dat)
 }
